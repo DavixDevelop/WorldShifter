@@ -1,0 +1,3 @@
+- [1.0](https://github.com/DavixDevelop/WorldShifter/releases/tag/1.0)
+    - Initial codebase
+    - For now, it only supports shifting chunks, entities, tile entities, and height maps in region files
