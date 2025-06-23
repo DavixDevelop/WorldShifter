@@ -1,0 +1,49 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath 'com.gradleup.shadow:shadow-gradle-plugin:9.0.0-beta17'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'application'
+}
+
+apply plugin: 'com.gradleup.shadow'
+
+mainClassName = 'com.davixdevelop.worldshifter.Main'
+
+group = 'com.davixdevelop'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "JitPack"
+        url = "https://jitpack.io/"
+    }
+}
+
+dependencies {
+    implementation project("NBT")
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+shadowJar {
+    archiveClassifier = null
+    manifest{
+        attributes(
+                'Main-Class' : 'com.davixdevelop.worldshifter.Main',
+        )
+    }
+    dependsOn(distTar, distZip)
+}
+
+test {
+    useJUnitPlatform()
+}
