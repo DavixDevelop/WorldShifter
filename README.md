@@ -5,7 +5,8 @@ Beside shifting the chunks, it also deletes empty chunks or chunks filled with o
 
 To use the tool run the following command:
 
-> java -jar WorldShifter-1.0-SNAPSHOT.jar <\path to world> <\offset>
+> java -jar WorldShifter-1.0-SNAPSHOT.jar <\path to world> <\offset> <br>
+> **Note: Offset must be in the values of 16**
 
 Ex. `java -jar "C:\Users\david\AppData\Roaming\.minecraft 1-20-4 Server\world" -2032`
 

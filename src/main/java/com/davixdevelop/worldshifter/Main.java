@@ -24,12 +24,19 @@ public class Main {
 
         String inputWorld = args[0];
         int offsetY = Integer.parseInt(args[1]);
+
+        if(offsetY % 16 != 0) {
+            System.out.println("Offset must be in the values of 16");
+            return;
+        }
+
         int sectionOffsetY = offsetY / 16;
 
         String regionFolderPath = Paths.get(inputWorld, "region").toString();
         File regionFolder = new File(regionFolderPath);
         if(!regionFolder.isDirectory()) {
             System.out.println("No region folder in input world");
+            return;
         }
 
         File[] regionFiles = regionFolder.listFiles(path -> path.getName().endsWith("mca"));
