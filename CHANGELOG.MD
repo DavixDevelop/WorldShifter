@@ -1,3 +1,5 @@
 - [1.0](https://github.com/DavixDevelop/WorldShifter/releases/tag/1.0)
     - Initial codebase
-    - For now, it only supports shifting chunks, entities, tile entities, and height maps in region files
+    - For now, it only supports shifting chunks, entities, tile entities, and height maps in region files.
+- [1.1](https://github.com/DavixDevelop/WorldShifter/releases/tag/1.1)
+    - Added support for height clipping with the optional parameters `[minY]` and `[maxY]`. If the height is not specified, the default height limit, based on the chunk's `DataVersion` is used to clip the shifted chunks. 

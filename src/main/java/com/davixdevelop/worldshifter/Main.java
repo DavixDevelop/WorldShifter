@@ -4,6 +4,8 @@ import io.github.ensgijs.nbt.mca.*;
 import io.github.ensgijs.nbt.mca.io.*;
 import io.github.ensgijs.nbt.mca.util.ChunkIterator;
 import io.github.ensgijs.nbt.mca.util.PalettizedCuboid;
+import io.github.ensgijs.nbt.mca.util.VersionAware;
+import io.github.ensgijs.nbt.query.NbtPath;
 import io.github.ensgijs.nbt.tag.CompoundTag;
 import io.github.ensgijs.nbt.tag.IntArrayTag;
 import io.github.ensgijs.nbt.tag.ListTag;
@@ -14,8 +16,14 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 
 public class Main {
+
+    private static final VersionAware<WorldHeight> WORLDS_HEIGHTS = new VersionAware<WorldHeight>()
+            .register(100, new WorldHeight(0, 256))
+            .register(2825, new WorldHeight(-64, 320));
+
     public static void main(String[] args) {
         if(args == null || args.length == 0 || args.length < 2) {
             System.out.println("No input world path/offset");
@@ -31,6 +39,23 @@ public class Main {
         }
 
         int sectionOffsetY = offsetY / 16;
+
+        Integer worldMin = null;
+        Integer worldMax = null;
+
+        if(args.length >= 4) {
+            worldMin = Integer.parseInt(args[2]);
+            worldMax = Integer.parseInt(args[3]);
+            if(worldMin % 16 != 0 || worldMax % 16 != 0) {
+                System.out.println("Incorrect world min/max height. Must be in values of 16");
+                return;
+            }
+
+            if(worldMin == worldMax) {
+                System.out.println("Incorrect world min/max height. Max world height must be bigger then min world height");
+                return;
+            }
+        }
 
         String regionFolderPath = Paths.get(inputWorld, "region").toString();
         File regionFolder = new File(regionFolderPath);
@@ -52,6 +77,17 @@ public class Main {
 
         int removedChunks = 0;
 
+        //Register paths for version 1631
+        //HeightMap
+        TerrainChunkBase.LEGACY_HEIGHT_MAP_PATH.register(1631, NbtPath.of("Level.HeightMap"));
+        //TerrainPopulated
+        TerrainChunkBase.TERRAIN_POPULATED_PATH.register(1631, NbtPath.of("Level.TerrainPopulated"));
+        //yPos
+        TerrainChunkBase.Y_POS_PATH.register(1631, NbtPath.of("Level.yPos"));
+
+        int dataVersion = 0;
+        WorldHeight dataWorldHeight = null;
+
         int c = 0;
         for(File regionFile : regionFiles) {
             c++;
@@ -67,30 +103,35 @@ public class Main {
             int writtenChunks = 0;
             try(RandomAccessMcaFile<TerrainChunk> regionMCA = new RandomAccessMcaFile<>(TerrainChunk.class, newRegion, "rw")){
                 regionMCA.touch();
-                ChunkIterator<TerrainChunk> chunkIterator = regionMCA.chunkIterator(LoadFlags.LOAD_ALL_DATA);
+                ChunkIterator<TerrainChunk> chunkIterator = regionMCA.chunkIterator(LoadFlags.HEIGHTMAPS | LoadFlags.ENTITIES | LoadFlags.TILE_ENTITIES | LoadFlags.TILE_TICKS | LoadFlags.LIQUID_TICKS | LoadFlags.TO_BE_TICKED | LoadFlags.POST_PROCESSING | LoadFlags.BLOCK_STATES | LoadFlags.SKY_LIGHT | LoadFlags.LIGHTS | LoadFlags.LIQUIDS_TO_BE_TICKED | LoadFlags.POI_RECORDS | LoadFlags.WORLD_UPGRADE_HINTS);
 
                 while (chunkIterator.hasNext()) {
                     HashMap<Integer, TerrainSection> offsetSections = new HashMap<>();
 
-                    TerrainChunk chunk = chunkIterator.next();
+                    TerrainChunk chunk = null;
+
+                    try {
+                        chunk = chunkIterator.next();
+                    }catch (Exception ex) {
+                        continue;
+                    }
+
+
 
                     if(chunk == null)
                         continue;
 
+                    if(dataVersion != chunk.getDataVersion() || dataWorldHeight == null) {
+                        dataVersion = chunk.getDataVersion();
+                        dataWorldHeight = WORLDS_HEIGHTS.get(dataVersion);
+
+                        if(dataVersion >= 2860 && worldMin != null && worldMax != null && worldMin >= -2032 && worldMax <= 2032) {
+                            dataWorldHeight = new WorldHeight(worldMin, worldMax);
+                        }
+                    }
+
                     Integer newMinY = null;
                     Integer newMaxY = null;
-
-                    if(chunk.getChunkX() == 298174 && chunk.getChunkZ() == -231232) {
-                        String w = "Carigrad North";
-                    }
-
-                    if(chunk.getChunkX() == 298142 && chunk.getChunkZ() == -231233) {
-                        String w = "Carigrad North - Empty Chunk";
-                    }
-
-                    if(chunk.getChunkX() == 286632 && chunk.getChunkZ() == -213977) {
-                        String w = "Turkey South - Port";
-                    }
 
                     //Offset sections
                     int minY = chunk.getMinSectionY();
@@ -102,7 +143,8 @@ public class Main {
                         for (int sectionY = minY; sectionY <= maxY; sectionY++) {
                             TerrainSection terrainSection = chunk.getSection(sectionY);
                             int newSectionY = sectionY + sectionOffsetY;
-                            if (newSectionY >= Byte.MIN_VALUE && newSectionY <= Byte.MAX_VALUE) {
+                            if (newSectionY >= Byte.MIN_VALUE && newSectionY <= Byte.MAX_VALUE
+                                    && newSectionY >= dataWorldHeight.getMinSection() && newSectionY <= dataWorldHeight.getMaxSection()) {
                                 offsetSections.put(newSectionY, terrainSection);
                                 if (newMinY == null) {
                                     newMinY = newSectionY;
@@ -155,14 +197,45 @@ public class Main {
                         chunk.setSection(sectionEntry.getKey(), sectionEntry.getValue());
                     }
 
+                    //Offset UpgradeData
+                    CompoundTag upgradeData = chunk.getUpgradeData();
+                    if(upgradeData != null && upgradeData.containsKey("Indices") && newMinY != null) {
+                        CompoundTag indices = upgradeData.getCompoundTag("Indices");
+                        Set<String> indicesKeys = indices.keySet();
+
+                        CompoundTag newIndices = new CompoundTag();
+
+                        for(String key : indicesKeys) {
+                            int indY = Integer.parseInt(key);
+
+                            int newIndY = indY + sectionOffsetY;
+                            int newSectionY = newIndY;
+                            //If chunks contain blending_data treat the name of the indice as an index (min_section + sectionY)
+                            if(blendingData != null) {
+                                newSectionY = (minY + indY) + sectionOffsetY;
+                                newIndY = -newMinY + newSectionY;
+                            }
+
+                            //Check if newSectionY falls within the Byte range
+                            if (newSectionY >= Byte.MIN_VALUE && newSectionY <= Byte.MAX_VALUE
+                                    && newSectionY >= dataWorldHeight.getMinSection() && newSectionY <= dataWorldHeight.getMaxSection())
+                                newIndices.putIntArray(String.valueOf(newIndY), indices.getIntArrayTag(key).getValue());
+                        }
+
+                        //Re-add the new indices
+                        upgradeData.put("Indices", newIndices);
+                        chunk.setUpgradeData(upgradeData);
+                    }
+
+
                     //Offset entities
                     ListTag<CompoundTag> entities = chunk.getEntities();
-                    if(entities != null && !entities.isEmpty()) {
+                    if(entities != null && !entities.isEmpty() && offsetY != 0) {
                         Iterator<CompoundTag> tagIterator = entities.iterator();
 
                         while (tagIterator.hasNext()) {
                             CompoundTag entity = tagIterator.next();
-                            Boolean res = offsetTags(entity, offsetY);
+                            Boolean res = offsetTags(entity, offsetY, dataWorldHeight);
 
                             if(res == null)
                                 tagIterator.remove();
@@ -172,11 +245,11 @@ public class Main {
                     }
 
                     ListTag<CompoundTag> tileEntities = chunk.getTileEntities();
-                    if(tileEntities != null && !tileEntities.isEmpty()) {
+                    if(tileEntities != null && !tileEntities.isEmpty() && offsetY != 0) {
                         Iterator<CompoundTag> tagIterator = tileEntities.iterator();
                         while (tagIterator.hasNext()) {
                             CompoundTag tileEntity = tagIterator.next();
-                            Boolean res = offsetTags(tileEntity, offsetY);
+                            Boolean res = offsetTags(tileEntity, offsetY, dataWorldHeight);
 
                             if(res == null)
                                 tagIterator.remove();
@@ -190,19 +263,19 @@ public class Main {
 
                     //Offset HeightMap
                     IntArrayTag legacyHeightMap = chunk.getLegacyHeightMap();
-                    if(legacyHeightMap != null) {
+                    if(legacyHeightMap != null && offsetY != 0) {
                         int[] h = legacyHeightMap.getValue();
                         for(int hi = 0; hi < h.length; hi++)
-                            h[hi] += Math.min(Math.max(h[hi] + offsetY, -2032), 2031);
+                            h[hi] = Math.min(Math.max(h[hi] + offsetY, dataWorldHeight.getMinHeight()), dataWorldHeight.getMaxHeight() - 1);
 
                         legacyHeightMap.setValue(h);
                         chunk.setLegacyHeightMap(legacyHeightMap);
                     }
 
-                    if(chunkHandle.containsKey("HeightMap")) {
+                    if(chunkHandle.containsKey("HeightMap") && offsetY != 0) {
                         int[] h = chunkHandle.getIntArray("HeightMap");
                         for(int hi = 0; hi < h.length; hi++) {
-                            h[hi] += Math.min(Math.max(h[hi] + offsetY, -2032), 2031);
+                            h[hi] = Math.min(Math.max(h[hi] + offsetY, dataWorldHeight.getMinHeight()), dataWorldHeight.getMaxHeight() - 1);
                         }
                         chunkHandle.putIntArray("HeightMap", h);
                     }
@@ -274,18 +347,21 @@ public class Main {
 
     private static int removedEntities = 0;
 
-    private static Boolean offsetTags(CompoundTag compoundTag, int offsetY) {
+    private static Boolean offsetTags(CompoundTag compoundTag, int offsetY, WorldHeight worldHeight) {
+        Boolean posCheck = null;
+
         if (compoundTag.containsKey("Pos")) {
             double[] pos = compoundTag.getDoubleTagListAsArray("Pos");
             pos[1] += offsetY;
 
-            if(pos[1] < -2032 || pos[1] > 2031) {
+            if(pos[1] < worldHeight.getMinHeight() || pos[1] > worldHeight.getMaxHeight() - 1) {
                 removedEntities++;
                 String id = compoundTag.getString("id");
                 return null;
             }
 
             compoundTag.putDoubleArrayAsTagList("Pos", pos);
+            posCheck = true;
         }
 
         Integer location;
@@ -304,8 +380,11 @@ public class Main {
         location = offsetIntTag(compoundTag, "BoundY", offsetY, location);
         location = offsetIntTag(compoundTag, "AY", offsetY, location);
 
+        if(posCheck != null && location == null)
+            return true;
+
         if(location != null) {
-            if(location < -2032 || location > 2031) {
+            if(location < worldHeight.getMinHeight() || location > worldHeight.getMaxHeight() - 1) {
                 removedEntities++;
                 return null;
             }
