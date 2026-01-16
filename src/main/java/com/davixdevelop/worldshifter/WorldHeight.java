@@ -28,4 +28,12 @@ public class WorldHeight {
     public int getMaxSection() {
         return maxSection;
     }
+
+    public boolean isWithin(int y) {
+        return y >= minHeight && y <= maxHeight - 1;
+    }
+
+    public boolean isWithin(double y) {
+        return y >= minHeight && y < maxHeight - 1;
+    }
 }
