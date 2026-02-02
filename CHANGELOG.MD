@@ -7,3 +7,9 @@
   - Added support for the `entities` folder
   - Implemented multithreading
   - Added optional parameter `--threadCount` to specify the number of threads to use (default 2)
+- [1.3](https://github.com/DavixDevelop/WorldShifter/releases/tag/1.3)
+  - Added support for tag `Heightmaps`
+  - Added support Tile tick format tags of `block_ticks` and `liquid_ticks`
+  - Added support for ToBeTicked format tags of `PostProcessing`, `ToBeTicked` and `LiquidsToBeTicked`
+  - Switched to custom fork of `ens-gijs/NBT`
+  - Added optional parameter `--multiWorld` to slice/shift the world to stacked worlds

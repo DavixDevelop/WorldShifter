@@ -1,118 +1,163 @@
 package com.davixdevelop.worldshifter;
 
+import com.davixdevelop.worldshifter.model.WorldHeight;
+import com.davixdevelop.worldshifter.tasks.MoveEntitiesTask;
+import com.davixdevelop.worldshifter.tasks.MoveRegionsTask;
+import com.davixdevelop.worldshifter.utils.LogUtils;
 import io.github.ensgijs.nbt.mca.*;
-import io.github.ensgijs.nbt.mca.entities.Entity;
-import io.github.ensgijs.nbt.mca.io.*;
-import io.github.ensgijs.nbt.mca.util.IntPointXZ;
-import io.github.ensgijs.nbt.mca.util.PalettizedCuboid;
 import io.github.ensgijs.nbt.mca.util.VersionAware;
 import io.github.ensgijs.nbt.query.NbtPath;
-import io.github.ensgijs.nbt.tag.CompoundTag;
-import io.github.ensgijs.nbt.tag.IntArrayTag;
-import io.github.ensgijs.nbt.tag.ListTag;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.github.ensgijs.nbt.mca.DataVersion.JAVA_1_13_2;
+import static io.github.ensgijs.nbt.mca.DataVersion.JAVA_1_18_21W43A;
+
 public class Main {
 
-    static final AtomicReference<VersionAware<WorldHeight>> WORLDS_HEIGHTS = new AtomicReference<>(new VersionAware<WorldHeight>()
+    public static final AtomicReference<VersionAware<WorldHeight>> WORLDS_HEIGHTS = new AtomicReference<>(new VersionAware<WorldHeight>()
             .register(100, new WorldHeight(0, 256))
             .register(2825, new WorldHeight(-64, 320)));
 
     public static void main(String[] args) throws InterruptedException {
-        if (args == null || args.length == 0 || args.length < 2) {
-            System.out.println("No input world path/offset");
+        if (args == null || args.length == 0) {
+            LogUtils.log("No input arguments");
+            printHelp();
             return;
         }
 
-        String inputWorld = args[0];
-        int offsetY = Integer.parseInt(args[1]);
+        ArrayList<String> argsList = new ArrayList<>(Arrays.stream(args).toList());
 
-        if (offsetY % 16 != 0) {
-            System.out.println("Offset must be in the values of 16");
+        if(argsList.contains("-help")) {
+            printHelp();
+            return;
+        }
+
+
+
+        int defaultThreadCount = 2;
+        boolean isMultiWorld = false;
+
+        String threadCountParam = "--threadCount";
+        String multiWorldParam = "--multiWorld";
+
+
+        String inputWorld = argsList.getFirst();
+        argsList.removeFirst();
+        File regionFolder;
+        //Validate input world
+        try {
+            File worldFolder = Paths.get(inputWorld).toFile();
+            if(worldFolder.isDirectory()){
+                regionFolder = Paths.get(inputWorld, "region").toFile();
+                if (!regionFolder.isDirectory()) {
+                    throw new FileNotFoundException("No region folder in input world");
+                }
+            } else
+                throw new IllegalArgumentException("Input world path invalid");
+
+        }catch (Exception ex) {
+            LogUtils.log("An exception happened while parsing input world path (" + inputWorld + "):");
+            LogUtils.logHelp("\t" + ex.getMessage());
+            return;
+        }
+
+        //Check if custom thread count is specified
+        if(argsList.contains(threadCountParam)) {
+            int threadCountIndex = argsList.indexOf(threadCountParam);
+            String errorMessage = null;
+            if(threadCountIndex + 1 < argsList.size()) {
+                try {
+                    defaultThreadCount = Integer.parseInt(argsList.get(threadCountIndex + 1));
+                } catch (NumberFormatException ex) {
+                   errorMessage = "Incorrect thread count format, could not parse: " + argsList.get(threadCountIndex + 1);
+                }
+            }else
+                errorMessage = "No thread count specified";
+
+            if(errorMessage != null) {
+                LogUtils.log("Incorrect usage of [--threadCount <count>]: ");
+                LogUtils.logHelp("\t" + errorMessage);
+                return;
+            }
+
+            //Remove the param from the args list
+            argsList.remove(threadCountIndex);
+            argsList.remove(threadCountIndex);
+        }
+
+        //Check if multi world option should be enabled
+        if(argsList.contains(multiWorldParam)) {
+            argsList.remove(multiWorldParam);
+            isMultiWorld = true;
+        }
+
+        if(argsList.isEmpty()) {
+            LogUtils.logHelp("No offset specified");
+            return;
+        }
+
+        //Get offset param and remove it from the param
+        String rawOffsetY = argsList.getFirst();
+        int offsetY = 0;
+        argsList.removeFirst();
+        try {
+            offsetY = Integer.parseInt(rawOffsetY);
+            if (offsetY % 16 != 0)
+                throw new NumberFormatException("Offset must be in the values of 16");
+
+        }catch (Exception ex) {
+            LogUtils.log("Incorrect offset argument (" + rawOffsetY + "):");
+            LogUtils.logHelp("\t" + ex.getMessage());
             return;
         }
 
         int sectionOffsetY = offsetY / 16;
 
-        Integer worldMin = null;
-        Integer worldMax = null;
+        Integer targetWorldMin = null;
+        Integer targetWorldMax = null;
 
-        int defaultThreadCount = 2;
-        String threadCountParam = "--threadCount";
-
-        if (args.length >= 4) {
-            Integer threadCountIndex = null;
-            if(args[2].equals(threadCountParam)) {
-                threadCountIndex = 3;
-            } else {
-                if(args.length >= 6 && args[4].equals(threadCountParam)) {
-                    threadCountIndex = 5;
+        if (argsList.size() >= 2) {
+            try {
+                targetWorldMin = Integer.parseInt(argsList.getFirst());
+                targetWorldMax = Integer.parseInt(argsList.get(1));
+                if (targetWorldMin % 16 != 0 || targetWorldMax % 16 != 0) {
+                    throw new NumberFormatException("Must be in values of 16");
                 }
 
-                try {
-                    worldMin = Integer.parseInt(args[2]);
-                    worldMax = Integer.parseInt(args[3]);
-                    if (worldMin % 16 != 0 || worldMax % 16 != 0) {
-                        System.out.println("Incorrect world min/max height. Must be in values of 16");
-                        return;
-                    }
-
-                    if (worldMin == worldMax) {
-                        System.out.println("Incorrect world min/max height. Max world height must be bigger then min world height");
-                        return;
-                    }
-                }catch (NumberFormatException ex) {
-                    System.out.println("Incorrect world min/max height format");
-                    return;
+                if (targetWorldMin >= targetWorldMax) {
+                    throw new IllegalArgumentException("Max target world height must be bigger then min world height");
                 }
-
+            }catch (Exception ex) {
+                LogUtils.log("Incorrect target world min/max height argument: ");
+                LogUtils.logHelp("\t" + ex.getMessage());
+                return;
             }
+        }
 
-            if(threadCountIndex != null) {
-                try {
-                    defaultThreadCount = Integer.parseInt(args[threadCountIndex]);
-                }catch (NumberFormatException ex) {
-                    System.out.println("Incorrect thread count format, ex. usage: --threadCount 2");
-                    return;
-                }
-            }
-
+        if(targetWorldMin == null && offsetY == 0) {
+            LogUtils.log("No custom target height and an zero offset");
+            LogUtils.log("If you want to slice the world into multi worlds, make sure to specify the desired height of the worlds \nthe offset of zero or any other offset and use `--multiWorld`");
+            return;
         }
 
         int threadCount = Math.min(Runtime.getRuntime().availableProcessors(), defaultThreadCount);
 
-        String regionFolderPath = Paths.get(inputWorld, "region").toString();
-        File regionFolder = new File(regionFolderPath);
-        if (!regionFolder.isDirectory()) {
-            System.out.println("No region folder in input world");
-            return;
-        }
-
         File[] regionFiles = regionFolder.listFiles(path -> path.getName().endsWith("mca"));
 
         if (regionFiles == null || regionFiles.length == 0) {
-            System.out.println("No region files detected");
+            LogUtils.log("No region files detected");
             return;
         }
 
-        File regionOutputFolder = Paths.get(inputWorld, "regionShifted").toFile();
-        regionOutputFolder.mkdirs();
-        System.out.println();
-
-        //Register paths for version 1631
-        //HeightMap
-        TerrainChunkBase.LEGACY_HEIGHT_MAP_PATH.register(1631, NbtPath.of("Level.HeightMap"));
-        //TerrainPopulated
-        TerrainChunkBase.TERRAIN_POPULATED_PATH.register(1631, NbtPath.of("Level.TerrainPopulated"));
-        //yPos
-        TerrainChunkBase.Y_POS_PATH.register(1631, NbtPath.of("Level.yPos"));
+        File outputFolder = Paths.get(inputWorld, "world-shifted").toFile();
+        outputFolder.mkdir();
+        LogUtils.log();
 
         AtomicInteger counter = new AtomicInteger(0);
         AtomicInteger removedEntities = new AtomicInteger(0);
@@ -128,16 +173,13 @@ public class Main {
             if(entitiesFiles != null) {
                 totalRegionsCount += entitiesFiles.length;
 
-                File entitiesOutputFolder = Paths.get(inputWorld, "entitiesShifted").toFile();
-                entitiesOutputFolder.mkdirs();
-
                 final ConcurrentLinkedQueue<File> entitiesRegionQueue = new ConcurrentLinkedQueue<>(Arrays.stream(entitiesFiles).toList());
 
                 ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
-                ArrayList<MoveEntitiesRegion> moveTasks = new ArrayList<>();
+                ArrayList<MoveEntitiesTask> moveTasks = new ArrayList<>();
 
                 for(int t = 0; t < threadCount; t++) {
-                    moveTasks.add(new MoveEntitiesRegion(worldMin, worldMax, offsetY, entitiesOutputFolder, totalRegionsCount, counter, entitiesRegionQueue));
+                    moveTasks.add(new MoveEntitiesTask(targetWorldMin, targetWorldMax, offsetY, isMultiWorld, outputFolder, totalRegionsCount, counter, entitiesRegionQueue));
                 }
 
                 List<Future<Integer>> completedTasks = executorService.invokeAll(moveTasks);
@@ -155,45 +197,63 @@ public class Main {
         final ConcurrentLinkedQueue<File> regionQueue = new ConcurrentLinkedQueue<>(Arrays.stream(regionFiles).toList());
 
         ExecutorService executorService = Executors.newFixedThreadPool(threadCount);
-        ArrayList<MoveRegions> tasks = new ArrayList<>();
+        ArrayList<MoveRegionsTask> tasks = new ArrayList<>();
 
         for (int t = 0; t < threadCount; t++) {
-            tasks.add(new MoveRegions(worldMin, worldMax, offsetY, sectionOffsetY, regionOutputFolder, totalRegionsCount, counter, removedEntities, regionQueue));
+            tasks.add(new MoveRegionsTask(targetWorldMin, targetWorldMax, offsetY, sectionOffsetY, isMultiWorld, outputFolder, totalRegionsCount, counter, removedEntities, regionQueue));
         }
 
         List<Future<Integer>> completed = executorService.invokeAll(tasks);
         executorService.shutdown();
 
-        int removedChunks = 0;
+        int skippedSections = 0;
         for(Future<Integer> future : completed) {
             if(future.state() == Future.State.SUCCESS)
-                removedChunks += future.resultNow();
+                skippedSections += future.resultNow();
         }
 
-        System.out.println();
+        File tempFolder = Paths.get(outputFolder.getPath(), "temp").toFile();
+        if(tempFolder.exists()) {
+            deleteFolder(tempFolder);
+        }
 
-        /*RegionMCAFile mcaFile = new RegionMCAFile(regionFile);
-            RegionChunk chunk = mcaFile.getChunk(0);
-            var c = chunk.getData();*/
-        ///CompoundTag compoundTag = chunk.getData();
+        LogUtils.log();
 
-        /*Set<Integer> chunkIndexes = new TreeSet<>();
-        try(McaFileChunkIterator<TerrainChunk> sourceChunkIterator = McaFileChunkIterator.iterate(regionFile, LoadFlags.RAW)) {
-            sourceChunkIterator.forEachRemaining(chunk -> {
-                chunkIndexes.add(chunk.getIndex());
-            });
-        }catch (Exception ex) {
-            System.out.println("Error while reading chunk index: " + ex.getMessage());
-            ex.printStackTrace();
-        }*/
-
-        if (removedChunks > 0)
-            System.out.println("Removed " + removedChunks + " empty chunks");
+        if (skippedSections > 0)
+            LogUtils.log("Skipped " + skippedSections + " terrain sections");
 
         if (removedEntities.get() > 0)
-            System.out.println("Removed " + removedEntities.get() + " out of bounds entities/tile entities");
+            LogUtils.log("Skipped " + removedEntities.get() + " out of bounds entities/tile entities");
 
-        System.out.println("Done");
+        LogUtils.log("Done");
+    }
+
+    private static void printHelp() {
+        List<String> lines = new ArrayList<>();
+        lines.add("usage: WorldShifter-1.3.7 <worldPath> [minY] [maxY] [--multiWorld] [--threadCount <count>]");
+        lines.add("Shift/slice a vanilla Minecraft Java (v1.13+) world on the Y axis");
+        lines.add("\t<worldPath>\tPath to the world (Required)");
+        lines.add("\t[minY] [maxY]\tMinimum (inclusive) anx maximum (exclusive) height  of the output world. Must be in values of 16 (Optional)");
+        lines.add("\t[--multiWorld]\tCreate multiple output worlds from the out of bound chunk sections (Optional)");
+        lines.add("\t[--threadCount <count>]\tThe amount of threads to use. Default 2 (Optional)");
+        LogUtils.log();
+        for(String l : lines) {
+            LogUtils.log(l);
+        }
+        LogUtils.log();
+    }
+
+    private static void deleteFolder(File folder) {
+        String[] files = folder.list();
+        for(String filePath : files) {
+            File file = Paths.get(folder.getPath(), filePath).toFile();
+            if(file.isDirectory())
+                deleteFolder(file);
+
+            file.delete();
+        }
+
+        folder.delete();
     }
 
 }
