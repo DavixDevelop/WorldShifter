@@ -122,8 +122,10 @@ public class Main {
         Integer targetWorldMin = null;
         Integer targetWorldMax = null;
 
-        if (argsList.size() >= 2) {
+        if (!argsList.isEmpty()) {
             try {
+                if(argsList.size() != 2)
+                    throw new IllegalArgumentException("Missing maximum (exclusive) height  of the output world");
                 targetWorldMin = Integer.parseInt(argsList.getFirst());
                 targetWorldMax = Integer.parseInt(argsList.get(1));
                 if (targetWorldMin % 16 != 0 || targetWorldMax % 16 != 0) {

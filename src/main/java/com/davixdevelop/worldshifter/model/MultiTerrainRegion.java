@@ -84,8 +84,10 @@ public class MultiTerrainRegion extends MultiRegion<TerrainChunk> {
                 if (entities != null && !entities.isEmpty()) {
                     entitiesPerWorldIndex = EntityUtils.offsetEntities(entities, offsetY, dataVersion, targetWorldHeight, removedEntities, isMultiWorld);
 
-                    minChunkWorldIndex = entitiesPerWorldIndex.firstKey();
-                    maxChunkWorldIndex = entitiesPerWorldIndex.lastKey();
+                    if(entitiesPerWorldIndex.isEmpty()) {
+                        minChunkWorldIndex = entitiesPerWorldIndex.firstKey();
+                        maxChunkWorldIndex = entitiesPerWorldIndex.lastKey();
+                    }
                 }
 
                 ListTag<CompoundTag> tileEntities = chunk.getTileEntities();
@@ -94,10 +96,12 @@ public class MultiTerrainRegion extends MultiRegion<TerrainChunk> {
                 if (tileEntities != null && !tileEntities.isEmpty()) {
                      tileEntitiesPerWorldIndex = EntityUtils.offsetEntities(tileEntities, offsetY, dataVersion, targetWorldHeight, removedEntities, isMultiWorld);
 
-                    if(minChunkWorldIndex == null || minChunkWorldIndex > tileEntitiesPerWorldIndex.firstKey())
-                        minChunkWorldIndex = tileEntitiesPerWorldIndex.firstKey();
-                    if(maxChunkWorldIndex == null || maxChunkWorldIndex < tileEntitiesPerWorldIndex.lastKey())
-                        maxChunkWorldIndex = tileEntitiesPerWorldIndex.lastKey();
+                     if(!tileEntitiesPerWorldIndex.isEmpty()) {
+                         if (minChunkWorldIndex == null || minChunkWorldIndex > tileEntitiesPerWorldIndex.firstKey())
+                             minChunkWorldIndex = tileEntitiesPerWorldIndex.firstKey();
+                         if (maxChunkWorldIndex == null || maxChunkWorldIndex < tileEntitiesPerWorldIndex.lastKey())
+                             maxChunkWorldIndex = tileEntitiesPerWorldIndex.lastKey();
+                     }
                 }
 
                 TreeMap<Integer, TreeMap<Integer, TerrainSection>> terrainSectionsPerWorld = new TreeMap<>();
@@ -124,10 +128,12 @@ public class MultiTerrainRegion extends MultiRegion<TerrainChunk> {
                             excludedSections.incrementAndGet();
                     }
 
-                    if(minChunkWorldIndex == null || minChunkWorldIndex > terrainSectionsPerWorld.firstKey())
-                        minChunkWorldIndex = terrainSectionsPerWorld.firstKey();
-                    if(maxChunkWorldIndex == null || maxChunkWorldIndex < terrainSectionsPerWorld.lastKey())
-                        maxChunkWorldIndex = terrainSectionsPerWorld.lastKey();
+                    if(!terrainSectionsPerWorld.isEmpty()) {
+                        if (minChunkWorldIndex == null || minChunkWorldIndex > terrainSectionsPerWorld.firstKey())
+                            minChunkWorldIndex = terrainSectionsPerWorld.firstKey();
+                        if (maxChunkWorldIndex == null || maxChunkWorldIndex < terrainSectionsPerWorld.lastKey())
+                            maxChunkWorldIndex = terrainSectionsPerWorld.lastKey();
+                    }
 
                 }
 
@@ -234,11 +240,13 @@ public class MultiTerrainRegion extends MultiRegion<TerrainChunk> {
                 if(postProcessing != null && !postProcessing.isEmpty()) {
                     postProcessingPerWorldIndex = offsetToBeTickedFormat(postProcessing, chunk.getChunkY(), targetWorldHeight);
 
-                    if(minChunkWorldIndex == null || minChunkWorldIndex >  postProcessingPerWorldIndex.firstKey())
-                        minChunkWorldIndex = postProcessingPerWorldIndex.firstKey();
+                    if(!postProcessingPerWorldIndex.isEmpty()) {
+                        if (minChunkWorldIndex == null || minChunkWorldIndex > postProcessingPerWorldIndex.firstKey())
+                            minChunkWorldIndex = postProcessingPerWorldIndex.firstKey();
 
-                    if(maxChunkWorldIndex == null || maxChunkWorldIndex < postProcessingPerWorldIndex.lastKey())
-                        maxChunkWorldIndex = postProcessingPerWorldIndex.lastKey();
+                        if (maxChunkWorldIndex == null || maxChunkWorldIndex < postProcessingPerWorldIndex.lastKey())
+                            maxChunkWorldIndex = postProcessingPerWorldIndex.lastKey();
+                    }
                 }
 
                 TreeMap<Integer, TreeMap<Integer, ListTag<?>>> toBeTickedPerWorldIndex = new TreeMap<>();
@@ -246,11 +254,13 @@ public class MultiTerrainRegion extends MultiRegion<TerrainChunk> {
                 if(toBeTicked != null && !toBeTicked.isEmpty()) {
                     toBeTickedPerWorldIndex = offsetToBeTickedFormat(toBeTicked, chunk.getChunkY(), targetWorldHeight);
 
-                    if(minChunkWorldIndex == null || minChunkWorldIndex >  toBeTickedPerWorldIndex.firstKey())
-                        minChunkWorldIndex = toBeTickedPerWorldIndex.firstKey();
+                    if(!toBeTickedPerWorldIndex.isEmpty()) {
+                        if (minChunkWorldIndex == null || minChunkWorldIndex > toBeTickedPerWorldIndex.firstKey())
+                            minChunkWorldIndex = toBeTickedPerWorldIndex.firstKey();
 
-                    if(maxChunkWorldIndex == null || maxChunkWorldIndex < toBeTickedPerWorldIndex.lastKey())
-                        maxChunkWorldIndex = toBeTickedPerWorldIndex.lastKey();
+                        if (maxChunkWorldIndex == null || maxChunkWorldIndex < toBeTickedPerWorldIndex.lastKey())
+                            maxChunkWorldIndex = toBeTickedPerWorldIndex.lastKey();
+                    }
                 }
 
                 TreeMap<Integer, TreeMap<Integer, ListTag<?>>> liquidsToBeTickedPerWorldIndex = new TreeMap<>();
@@ -258,11 +268,13 @@ public class MultiTerrainRegion extends MultiRegion<TerrainChunk> {
                 if(liquidsToBeTicked != null && !liquidsToBeTicked.isEmpty()) {
                     liquidsToBeTickedPerWorldIndex = offsetToBeTickedFormat(liquidsToBeTicked, chunk.getChunkY(), targetWorldHeight);
 
-                    if(minChunkWorldIndex == null || minChunkWorldIndex >  liquidsToBeTickedPerWorldIndex.firstKey())
-                        minChunkWorldIndex = liquidsToBeTickedPerWorldIndex.firstKey();
+                    if(!liquidsToBeTickedPerWorldIndex.isEmpty()) {
+                        if (minChunkWorldIndex == null || minChunkWorldIndex > liquidsToBeTickedPerWorldIndex.firstKey())
+                            minChunkWorldIndex = liquidsToBeTickedPerWorldIndex.firstKey();
 
-                    if(maxChunkWorldIndex == null || maxChunkWorldIndex < liquidsToBeTickedPerWorldIndex.lastKey())
-                        maxChunkWorldIndex = liquidsToBeTickedPerWorldIndex.lastKey();
+                        if (maxChunkWorldIndex == null || maxChunkWorldIndex < liquidsToBeTickedPerWorldIndex.lastKey())
+                            maxChunkWorldIndex = liquidsToBeTickedPerWorldIndex.lastKey();
+                    }
                 }
 
                 ListTag<CompoundTag> tileTicks = chunk.getTileTicks();
@@ -270,11 +282,13 @@ public class MultiTerrainRegion extends MultiRegion<TerrainChunk> {
                 if(tileTicks != null && !tileTicks.isEmpty()) {
                     tileTicksPerWorldIndex = offsetTileTickFormat(tileTicks, targetWorldHeight);
 
-                    if(minChunkWorldIndex == null || minChunkWorldIndex >  tileTicksPerWorldIndex.firstKey())
-                        minChunkWorldIndex = tileTicksPerWorldIndex.firstKey();
+                    if(!tileTicksPerWorldIndex.isEmpty()) {
+                        if (minChunkWorldIndex == null || minChunkWorldIndex > tileTicksPerWorldIndex.firstKey())
+                            minChunkWorldIndex = tileTicksPerWorldIndex.firstKey();
 
-                    if(maxChunkWorldIndex == null || maxChunkWorldIndex < tileTicksPerWorldIndex.lastKey())
-                        maxChunkWorldIndex = tileTicksPerWorldIndex.lastKey();
+                        if (maxChunkWorldIndex == null || maxChunkWorldIndex < tileTicksPerWorldIndex.lastKey())
+                            maxChunkWorldIndex = tileTicksPerWorldIndex.lastKey();
+                    }
                 }
 
                 ListTag<CompoundTag> liquidTicks = chunk.getLiquidTicks();
@@ -282,11 +296,13 @@ public class MultiTerrainRegion extends MultiRegion<TerrainChunk> {
                 if(liquidTicks != null && !liquidTicks.isEmpty()) {
                     liquidTicksPerWorldIndex = offsetTileTickFormat(liquidTicks, targetWorldHeight);
 
-                    if(minChunkWorldIndex == null || minChunkWorldIndex >  liquidTicksPerWorldIndex.firstKey())
-                        minChunkWorldIndex = liquidTicksPerWorldIndex.firstKey();
+                    if(!liquidTicksPerWorldIndex.isEmpty()) {
+                        if (minChunkWorldIndex == null || minChunkWorldIndex > liquidTicksPerWorldIndex.firstKey())
+                            minChunkWorldIndex = liquidTicksPerWorldIndex.firstKey();
 
-                    if(maxChunkWorldIndex == null || maxChunkWorldIndex < liquidTicksPerWorldIndex.lastKey())
-                        maxChunkWorldIndex = liquidTicksPerWorldIndex.lastKey();
+                        if (maxChunkWorldIndex == null || maxChunkWorldIndex < liquidTicksPerWorldIndex.lastKey())
+                            maxChunkWorldIndex = liquidTicksPerWorldIndex.lastKey();
+                    }
                 }
 
 

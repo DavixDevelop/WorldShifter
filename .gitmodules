@@ -1,3 +1,4 @@
 [submodule "NBT"]
 	path = NBT
 	url = https://github.com/DavixDevelop/NBT.git
+	ignore = all

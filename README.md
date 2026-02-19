@@ -22,7 +22,7 @@ The current supported chunk root tags that get shifted are the following (others
 To use the tool run the following command:
 
 ``` 
-java -jar WorldShifter-1.3.7.jar <worldPath>> <offset> [minY] [maxY] [--multiWorld] [--threadCount <count>]
+java -jar WorldShifter-1.3.8.jar <worldPath>> <offset> [minY] [maxY] [--multiWorld] [--threadCount <count>]
 ```
 >- Replace the `<worldPath>` to the path to your world.
 >- Replace the `<offset>` with your desired offset, which must be in the values of 16.
@@ -32,7 +32,7 @@ java -jar WorldShifter-1.3.7.jar <worldPath>> <offset> [minY] [maxY] [--multiWor
 
 Ex. command:  
 ```
-java -jar WorldShifter-1.3.7.jar "C:\Users\david\AppData\Roaming\.minecraft 1-20-4 Server\world" -2032 -2032 2032 --threadCount 4
+java -jar WorldShifter-1.3.8.jar "C:\Users\david\AppData\Roaming\.minecraft 1-20-4 Server\world" -2032 -2032 2032 --threadCount 4
 ```
 
 > Note: If you don't specify the `[minY]` and `[maxY]`, the default world height limit depending on the `DataVersion` of the region file will be chosen.
